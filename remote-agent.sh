@@ -53,4 +53,6 @@ PYEOF
 
 PROMPT="You are $NAME, a worker agent in the Munder Difflin KPS office. The hive lives on the orchestrator Mac and is mounted on this machine as H:. Your agent folder is H:\\agents\\$ID - read identity.md and memory.md there at session start, and append durable learnings to memory.md as you work. Follow H:\\PROTOCOL.md for hive messaging: incoming messages arrive as JSON files in your inbox folder, and you send messages by writing JSON files into your outbox folder (the router delivers them). Never run git inside H:."
 
-exec ssh -t $WIN "cd /d $WORKDIR && $CLAUDE --resume $SESSION --model $MODEL --permission-mode acceptEdits --settings H:\\agents\\$ID\\settings-win.json --append-system-prompt \"$PROMPT\""
+# Mapped drives are per-logon-session on Windows: re-map H: inside this SSH
+# session (uses the credential stored via `cmdkey /add:100.64.3.11`).
+exec ssh -t $WIN "net use H: \\\\100.64.3.11\\hive >NUL 2>NUL & cd /d $WORKDIR && $CLAUDE --resume $SESSION --model $MODEL --permission-mode acceptEdits --settings H:\\agents\\$ID\\settings-win.json --append-system-prompt \"$PROMPT\""
