@@ -93,6 +93,12 @@ import {
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
 
+// Allow parallel offices: each instance gets its own userData (config, db,
+// instance lock) via MD_USER_DATA. Must run before any getPath/lock call.
+if (process.env.MD_USER_DATA) {
+  app.setPath('userData', process.env.MD_USER_DATA);
+}
+
 // Keep the main process alive on an unexpected throw/rejection. The harness is a
 // multi-agent supervisor — a single stray throw (e.g. node-pty's ConPTY console
 // helper choking when a fast-exiting agent CLI's console is already gone) must
