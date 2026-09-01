@@ -19,9 +19,9 @@ for i in {1..20}; do
 import json,sys
 try:
     r=json.load(open('$HIVE/registry.json'))
-    for k,v in r.get('agents',{}).items():
-        if (v.get('name') or '').strip().lower()=='$NAME'.strip().lower():
-            print(k); break
+    hits=[k for k,v in r.get('agents',{}).items()
+          if (v.get('name') or '').strip().lower()=='$NAME'.strip().lower()]
+    if hits: print(hits[-1])  # last match = newest registration wins over stale duplicates
 except Exception: pass")
   [[ -n "$ID" ]] && break
   sleep 1
