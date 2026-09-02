@@ -5,6 +5,7 @@ import { PixelButton } from './PixelButton';
 import { Icon } from './Icon';
 import { useStore, type Agent, type QueuedMessage } from '@/store/store';
 import { clearTerminalDraft, dismissTerminalPicker, terminalAutomationBlockFor } from './terminalPool';
+import { resolveDroppedPath } from './droppedFiles';
 import type { TerminalAutomationBlock } from './terminalAutomation';
 import { freeflowRecorder, useFreeflow } from '@/freeflow/recorder';
 import { useTerminalFontSize } from './terminalFontSize';
@@ -96,14 +97,16 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
   };
 
   // Drop files onto the composer → resolve each to its absolute path.
-  const onDrop = (e: DragEvent<HTMLDivElement>) => {
+  const onDrop = async (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setDragOver(false);
     const dropped = Array.from(e.dataTransfer?.files ?? []);
     if (!dropped.length) return;
-    const atts = dropped
-      .map((f) => ({ path: window.cth.pathForFile(f), name: f.name }))
-      .filter((a) => a.path);
+    const atts = (
+      await Promise.all(
+        dropped.map(async (f) => ({ path: await resolveDroppedPath(f), name: f.name }))
+      )
+    ).filter((a) => a.path);
     if (atts.length) addAttachments(atts);
   };
 

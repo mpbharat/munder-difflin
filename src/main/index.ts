@@ -3659,6 +3659,26 @@ ipcMain.handle('clipboard:saveImage', async () => {
   }
 });
 
+// Drag-dropped macOS screenshot thumbnails resolve to a TCC-protected,
+// ephemeral .../T/TemporaryItems/NSIRD_screencaptureui_*/ path that agents can
+// never read. At drop time the renderer still holds the real bytes, so it
+// stashes them here to a readable temp file and attaches by THAT path instead.
+ipcMain.handle('drop:stashImage', (_evt, payload: unknown) => {
+  const p = (payload ?? {}) as { name?: unknown; base64?: unknown };
+  if (typeof p.name !== 'string' || typeof p.base64 !== 'string') return { ok: false as const, error: 'invalid args' };
+  try {
+    const dir = join(app.getPath('temp'), 'munder-drops');
+    mkdirSync(dir, { recursive: true });
+    // basename + separator strip: a dropped filename is attacker-controllable.
+    const safe = basename(p.name).replace(/[/\\:\0]/g, '_') || 'dropped-file';
+    const dest = join(dir, `${Date.now()}-${safe}`);
+    writeFileSync(dest, Buffer.from(p.base64, 'base64'));
+    return { ok: true as const, file: { path: dest, name: safe } };
+  } catch (e) {
+    return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
+  }
+});
+
 // ─── IPC: command history (SQLite — every prompt submitted to an agent) ──────
 ipcMain.handle('history:add', (_evt, payload: unknown) => {
   const p = (payload ?? {}) as { agentId?: unknown; cwd?: unknown; text?: unknown };

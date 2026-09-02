@@ -841,6 +841,12 @@ const api = {
   saveClipboardImage: (): Promise<
     { ok: true; file: { path: string; name: string } } | { ok: false; error: string }
   > => ipcRenderer.invoke('clipboard:saveImage'),
+  /** Stash a dropped File's bytes to a readable temp file and return its path
+   *  (macOS screenshot thumbnails resolve to a TCC-protected /TemporaryItems/
+   *  path that agents can never read — the bytes ARE readable at drop time). */
+  stashDroppedFile: (name: string, base64: string): Promise<
+    { ok: true; file: { path: string; name: string } } | { ok: false; error: string }
+  > => ipcRenderer.invoke('drop:stashImage', { name, base64 }),
 
   // ─── Command history (SQLite — every prompt submitted to an agent) ─────────
   /** Record one submitted prompt. Fire-and-forget from the prompt-detection hook. */

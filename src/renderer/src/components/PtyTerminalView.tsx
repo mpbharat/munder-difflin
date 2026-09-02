@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import '@xterm/xterm/css/xterm.css';
 import { Icon } from './Icon';
 import { acquireTerminal, attachTerminal, detachTerminal, reflowTerminal } from './terminalPool';
+import { resolveDroppedPath } from './droppedFiles';
 import {
   DEFAULT_TERMINAL_FONT_SIZE,
   MAX_TERMINAL_FONT_SIZE,
@@ -301,12 +302,12 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
       e.dataTransfer.dropEffect = 'copy';
     }
   };
-  const onDrop = (e: React.DragEvent) => {
+  const onDrop = async (e: React.DragEvent) => {
     const files = Array.from(e.dataTransfer?.files ?? []);
     if (files.length === 0) return; // not a file drop — let xterm handle it
     e.preventDefault();
-    const paths = files
-      .map((f) => window.cth.pathForFile(f))
+    const resolved = await Promise.all(files.map((f) => resolveDroppedPath(f)));
+    const paths = resolved
       .filter(Boolean)
       // SECURITY: a dropped filename is attacker-controllable; inject it as an
       // INERT single shell token in the NATIVE backslash-escaped style (what macOS
