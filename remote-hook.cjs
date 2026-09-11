@@ -28,6 +28,10 @@ function go(raw) {
   }
   if (!sock) process.exit(0);
   const c = net.createConnection(sock, () => { c.end(JSON.stringify(payload) + '\n'); });
+  // Hard-exit watchdog: a hive app that accepts the connection but never
+  // closes it would otherwise leave this process (and its SSH session)
+  // hanging forever. Ported from the original cth-hook shim.
+  setTimeout(() => process.exit(0), isStatus ? 1500 : 5000).unref();
   let reply = '';
   c.on('data', (d) => { reply += d; });
   c.on('error', () => process.exit(0));

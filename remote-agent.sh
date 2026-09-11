@@ -6,6 +6,10 @@
 # this script as its command; the registry entry is written before spawn).
 set -u
 NAME="$1"; SESSION="$2"; MODEL="${3:-claude-opus-4-8}"
+if [[ "$NAME" == *'"'* ]]; then
+  echo "remote-agent: agent name must not contain a double quote" >&2
+  exit 1
+fi
 HIVE=/Users/bhrat.sankar/md-home-kps/hive
 WIN=bharat.sankar@100.126.249.40
 MAC=bhrat.sankar@100.64.3.11
@@ -17,12 +21,18 @@ ID=""
 for i in {1..20}; do
   ID=$(python3 -c "
 import json,sys
+name=sys.argv[1]
 try:
     r=json.load(open('$HIVE/registry.json'))
-    hits=[k for k,v in r.get('agents',{}).items()
-          if (v.get('name') or '').strip().lower()=='$NAME'.strip().lower()]
-    if hits: print(hits[-1])  # last match = newest registration wins over stale duplicates
-except Exception: pass")
+    agents=r.get('agents',{})
+    hits=[k for k,v in agents.items()
+          if (v.get('name') or '').strip().lower()==name.strip().lower()]
+    # Prefer live, non-worker entries over archived/worker duplicates; fall
+    # back to the newest overall match if nothing live is registered yet.
+    live=[k for k in hits if not k.startswith('worker-') and not agents[k].get('archived')]
+    if live: print(live[-1])
+    elif hits: print(hits[-1])  # last match = newest registration wins over stale duplicates
+except Exception: pass" "$NAME")
   [[ -n "$ID" ]] && break
   sleep 1
 done
@@ -34,7 +44,20 @@ fi
 # Windows-side Claude settings: every hook pipes its payload over SSH back to
 # the Mac's hive shim (hooks.sock is a unix socket - unreachable from Windows).
 SHIM_BASE="ssh -o BatchMode=yes -o ConnectTimeout=5 $MAC \"AGENT_ID=$ID HIVE_SOCK=$HIVE/hooks.sock $HIVE/bin/hive-node /Users/bhrat.sankar/Documents/Claude/munder-difflin/remote-hook.cjs"
-python3 - "$ID" "$SHIM_BASE" > "$HIVE/agents/$ID/settings-win.json" <<'PYEOF'
+
+# The agent's hive folder is created asynchronously on registration; wait for
+# it before writing settings-win.json into it.
+AGENT_DIR="$HIVE/agents/$ID"
+for i in {1..10}; do
+  [[ -d "$AGENT_DIR" ]] && break
+  sleep 1
+done
+if [[ ! -d "$AGENT_DIR" ]]; then
+  echo "remote-agent: $AGENT_DIR never appeared" >&2
+  exit 1
+fi
+
+python3 - "$ID" "$SHIM_BASE" > "$AGENT_DIR/settings-win.json" <<'PYEOF'
 import json, sys
 aid, shim_base = sys.argv[1], sys.argv[2]
 cmd = shim_base + '"'
@@ -50,6 +73,7 @@ print(json.dumps({
     },
 }, indent=1))
 PYEOF
+[[ -s "$AGENT_DIR/settings-win.json" ]] || { echo "remote-agent: failed to write $AGENT_DIR/settings-win.json" >&2; exit 1; }
 
 PROMPT="You are $NAME, a worker agent in the Munder Difflin KPS office. The hive lives on the orchestrator Mac and is mounted on this machine as H:. Your agent folder is H:\\agents\\$ID - read identity.md and memory.md there at session start, and append durable learnings to memory.md as you work. Follow H:\\PROTOCOL.md for hive messaging: incoming messages arrive as JSON files in your inbox folder, and you send messages by writing JSON files into your outbox folder (the router delivers them). Never run git inside H:."
 
